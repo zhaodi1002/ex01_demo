@@ -1,27 +1,47 @@
 #define TOUCH_PIN 4
 #define LED_PIN 2
 #define THRESHOLD 20
-unsigned long debounceTime = 100;
-unsigned long lastTouchTime = 0;
-bool ledState = false;
-int lastTouchVal = 100;
+unsigned long debounceTime = 120;
+unsigned long lastTouch = 0;
+int speedLevel = 1; // 1慢 2中 3快
+int freq = 5000;
+int res = 8;
 
 void setup() {
   Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  ledcAttach(LED_PIN, freq, res);
 }
 
 void loop() {
+  // 触摸档位切换逻辑
   int touchVal = touchRead(TOUCH_PIN);
   unsigned long now = millis();
-
-  // 边缘检测：上一次未触摸，当前触摸 + 防抖延时
-  if(touchVal < THRESHOLD && lastTouchVal >= THRESHOLD && now - lastTouchTime > debounceTime){
-    ledState = !ledState;
-    digitalWrite(LED_PIN, ledState);
-    lastTouchTime = now;
+  static int lastTouchSt = 100;
+  if(touchVal < THRESHOLD && lastTouchSt >= THRESHOLD && now - lastTouch > debounceTime){
+    speedLevel++;
+    if(speedLevel > 3) speedLevel = 1;
+    lastTouch = now;
+    Serial.print("当前档位：");
+    Serial.println(speedLevel);
   }
-  lastTouchVal = touchVal;
-  delay(20);
+  lastTouchSt = touchVal;
+
+  // 根据档位设置呼吸步长延时
+  int stepDelay;
+  switch(speedLevel){
+    case 1: stepDelay = 30; break;
+    case 2: stepDelay = 12; break;
+    case 3: stepDelay = 4; break;
+  }
+
+  // 渐亮
+  for(int i=0; i<=255; i++){
+    ledcWrite(LED_PIN, i);
+    delay(stepDelay);
+  }
+  // 渐暗
+  for(int i=255; i>=0; i--){
+    ledcWrite(LED_PIN, i);
+    delay(stepDelay);
+  }
 }
